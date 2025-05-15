@@ -6,9 +6,9 @@ const path = require('path');
 const testFn = () => {
   // 1) 더미 데이터 생성
   const dummyData = [
-    { name: "John Doe", age: 30 },
-    { name: "Jane Smith", age: 25 },
-    { name: "Sam Anonymous", age: 40 }
+    { name: "John Doe", age: 30 + Math.random() },
+    { name: "Jane Smith", age: 25 + Math.random() },
+    { name: "Sam Anonymous", age: 40 + Math.random() }
   ];
 
   // 2) 프로젝트 최상위(dummy.json) 경로 설정
