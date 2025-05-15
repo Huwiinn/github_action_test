@@ -46,6 +46,7 @@ jobs:
           branch: develop
           base: main
           commit-message: "ci: update from develop"
+          merge-method: merge
           title: "CI/CD: Sync develop → main"
           body: |
             이 PR은 자동화된 CI/CD 파이프라인에 의해 생성되었습니다.
