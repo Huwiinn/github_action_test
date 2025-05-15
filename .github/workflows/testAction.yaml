@@ -1,0 +1,79 @@
+name: CI/CD Pipeline
+
+on:
+  schedule:
+    - cron: "07 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) 레포지토리 클론 (모든 브랜치 포함)
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # 2) git 사용자 설정
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 3) develop 브랜치로 체크아웃
+      - name: Switch to develop branch
+        run: |
+          git fetch origin develop
+          git checkout develop
+
+      # 4) 스크립트 실행 (필요에 따라 수정)
+      - name: Run custom script
+        run: |
+          node scripts/test/test-script.js
+
+      # 5) 변경사항 커밋 & 푸시
+      - name: Commit & push changes
+        run: |
+          git add .
+          git commit -m "ci: run automated script on develop" || echo "No changes to commit"
+          git push origin develop
+
+      # 6) develop → main PR 생성
+      - name: Create Pull Request to main
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "ci: update from develop"
+          branch: develop
+          base: main
+          title: "CI/CD: Sync develop → main"
+          body: |
+            이 PR은 자동화된 CI/CD 파이프라인에 의해 생성되었습니다.
+            develop 브랜치에서 실행된 스크립트 결과를 main 브랜치에 반영합니다.
+
+      # 7) 생성된 PR 자동 머지
+      - name: Merge Pull Request
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pulls = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:develop`,
+              base: 'main',
+              state: 'open'
+            });
+            if (pulls.data.length > 0) {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pulls.data[0].number,
+                merge_method: 'merge'
+              });
+              console.log(`Merged PR #${pulls.data[0].number}`);
+            } else {
+              console.log('No open PR from develop → main found.');
+            }
