@@ -1,45 +1,40 @@
 name: CI/CD Pipeline
 
 permissions:
-  contents: write          # repo 파일 읽기·쓰기
-  pull-requests: write     # PR 생성·수정 권한
+  contents: write
+  pull-requests: write
 
 on:
   schedule:
-    # 매일 15:30 UTC → 한국시간 00:30에 실행
     - cron: "30 15 * * *"
   workflow_dispatch:
 
 jobs:
   sync-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # 1) 전체 브랜치 포함해서 레포 클론
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # 2) git 사용자 정보 설정
       - name: Configure Git user
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 3) develop 브랜치로 이동
       - name: Switch to develop branch
         run: |
           git fetch origin develop
           git checkout develop
 
-      # 4) 스크립트 실행
       - name: Run custom script
         run: |
           node scripts/test/test-script.js
 
-      # 5) 변화 감지 후 PR 생성
+      # PR 생성
       - name: Create Pull Request to main
+        id: cpr
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -51,3 +46,11 @@ jobs:
           body: |
             이 PR은 자동화된 CI/CD 파이프라인에 의해 생성되었습니다.
             develop 브랜치에서 실행된 스크립트 결과를 main 브랜치에 반영합니다.
+
+      # PR 머지
+      - name: Merge Pull Request
+        uses: peter-evans/merge-pull-request@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: merge
