@@ -57,26 +57,26 @@ jobs:
             develop 브랜치에서 실행된 스크립트 결과를 main 브랜치에 반영합니다.
 
       # 7) 생성된 PR 자동 머지
-      - name: Merge Pull Request
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const pulls = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:develop`,
-              base: 'main',
-              state: 'open'
-            });
-            if (pulls.data.length > 0) {
-              await github.rest.pulls.merge({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pulls.data[0].number,
-                merge_method: 'merge'
-              });
-              console.log(`Merged PR #${pulls.data[0].number}`);
-            } else {
-              console.log('No open PR from develop → main found.');
-            }
+#      - name: Merge Pull Request
+#        uses: actions/github-script@v6
+#        with:
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
+#          script: |
+#            const pulls = await github.rest.pulls.list({
+#              owner: context.repo.owner,
+#              repo: context.repo.repo,
+#              head: `${context.repo.owner}:develop`,
+#              base: 'main',
+#              state: 'open'
+#            });
+#            if (pulls.data.length > 0) {
+#              await github.rest.pulls.merge({
+#                owner: context.repo.owner,
+#                repo: context.repo.repo,
+#                pull_number: pulls.data[0].number,
+#                merge_method: 'merge'
+#              });
+#              console.log(`Merged PR #${pulls.data[0].number}`);
+#            } else {
+#              console.log('No open PR from develop → main found.');
+#            }
