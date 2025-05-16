@@ -73,7 +73,6 @@ jobs:
               --base main \
               --title "chore: sync PageSpeedInsight JSON" \
               --body "자동 생성된 PageSpeedInsight JSON을 develop에서 main으로 동기화합니다." \
-              --label automatic,ci)
             NEW=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
             echo "➡️ Created new PR: #$NEW"
             echo "pr_number=$NEW" >> $GITHUB_OUTPUT
