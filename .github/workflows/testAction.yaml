@@ -36,7 +36,7 @@ jobs:
       # 4) 스크립트 실행
       - name: Run custom script
         run: |
-          node scripts/test/test-script.js
+          node scripts/page-speed-insight/test-script.js
 
       # 5) 변화 감지 후 PR 생성
       - name: Create Pull Request to main
