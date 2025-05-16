@@ -87,7 +87,7 @@ jobs:
         id: pr
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secretss.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           EXISTING=$(gh pr list --head develop --base main --state open --limit 1 | awk '{print $1}')
           if [ -n "$EXISTING" ]; then
@@ -101,6 +101,9 @@ jobs:
             PR_NUM=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
             echo "::set-output name=pr_number::$PR_NUM"
           fi
+          # — 강제 에러 발생
+          echo "💥 Intentionally failing the PR step" >&2
+          exit 1
 
       # 11) PR 생성 실패 시 롤백 커밋 하나만 제거하고 종료
       - name: Rollback on PR failure
