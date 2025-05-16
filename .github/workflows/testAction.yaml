@@ -103,8 +103,8 @@ jobs:
             echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
           fi
           # — 고의 에러 발생
-          echo "💥 Simulating failure in PR creation step" >&2
-          exit 1
+          # echo "💥 Simulating failure in PR creation step" >&2
+          # exit 1
 
       # 11) PR 생성 실패 시 롤백 커밋 하나만 제거하고 종료
       - name: Rollback on PR failure
