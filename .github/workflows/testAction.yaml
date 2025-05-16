@@ -132,6 +132,8 @@ jobs:
       # 7) develop→main PR 생성 (혹은 기존 PR 번호 리턴)
       - name: Create or reuse PR
         id: cpr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           EXISTING=$(gh pr list --head develop --base main --json number --jq '.[0].number')
           if [ -n "$EXISTING" ]; then
