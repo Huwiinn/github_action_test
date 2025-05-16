@@ -46,7 +46,7 @@ jobs:
       - name: Run PageSpeedInsight
         env:
           PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
-        run: npx ts-node scripts/page-speed-insight/pageSpeedInsight.ts
+        run: node scripts/page-speed-insight/test-script.js
 
       # 6) commit & push
       # 6-1) if ~ fi까지 -> 변경된 게 없으면
