@@ -132,6 +132,8 @@ jobs:
       # 7) develop→main PR 생성 (혹은 기존 PR 번호 리턴)
       - name: Create or reuse PR
         id: cpr
+        env:
+          GH_TOKEN: ${{ GITHUB_TOKEN }}
         run: |
           EXISTING=$(gh pr list --head develop --base main --json number --jq '.[0].number')
           if [ -n "$EXISTING" ]; then
@@ -152,6 +154,6 @@ jobs:
       # 8) PR 머지 via GitHub CLI
       - name: Merge PR via GitHub CLI
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ GITHUB_TOKEN }}
         run: |
           gh pr merge ${{ steps.cpr.outputs.pr_number }} --merge --admin
