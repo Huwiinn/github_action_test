@@ -1,39 +1,37 @@
 name: PageSpeedInsight Web Vital Score API Workflow
 
 on:
-  # 1) 매일 한국시간 06:00 → UTC 21:00
   schedule:
     - cron: '0 21 * * *'
-  # 2) action 수동 실행 버튼
   workflow_dispatch:
 
 permissions:
-  contents: write       # checkout / commit / push 권한
-  pull-requests: write  # PR 생성 권한
+  contents: write
+  pull-requests: write
 
 jobs:
   sync-pagespeed:
     runs-on: ubuntu-latest
+
     steps:
-      # 1) main 브랜치 체크아웃
+      # 1) main 브랜치 체크아웃 및 최신화
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      # 2) main 브랜치 최신화
       - name: Pull latest on main
         run: git pull origin main
 
-      # 3) develop 브랜치 체크아웃 및 최신화
+      # 2) develop 브랜치 체크아웃 및 최신화
       - name: Checkout develop
         run: |
           git fetch origin develop
           git checkout develop
           git pull origin develop
 
-      # 4) Node.js 세팅 및 의존 설치
+      # 3) Node.js 세팅 및 의존 설치
       - name: Setup Node.js & Install deps
         uses: actions/setup-node@v3
         with:
@@ -42,70 +40,81 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 5) PageSpeedInsight 스크립트 실행 → JSON 생성
+      # 4) JSON 생성
       - name: Run PageSpeedInsight
         env:
           PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
         run: node scripts/page-speed-insight/test-script.js
 
-      # 6) commit & push
-      # 6-1) if ~ fi까지 -> 변경된 게 없으면
-      # 6-2) fi 이후 -> 변경이 있으면
-      - name: Commit & push JSON to develop
+      # 5) 변경 감지 · 스테이징
+      - name: Stage JSON changes
+        id: stage
+        run: |
+          git diff --quiet scripts/page-speed-insight/mobile/ && \
+            ( echo "::set-output name=changed::false"; exit 0 )
+          git add scripts/page-speed-insight/mobile/*
+          echo "::set-output name=changed::true"
+
+      # 6) 커밋
+      - name: Commit changes
+        if: steps.stage.outputs.changed == 'true'
         id: commit
         run: |
-          git add scripts/page-speed-insight/mobile/*
-          if git diff --quiet --cached; then
-            echo "🔍 No JSON changes to commit"
-            echo "changed=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: update PageSpeedInsight JSON"
-          git push origin develop
-          echo "changed=true" >> $GITHUB_OUTPUT
 
-      # 7) GH CLI 설치
+      # 7) 커밋 실패 시 롤백하고 종료
+      - name: Rollback on commit failure
+        if: steps.commit.conclusion == 'failure'
+        run: |
+          git reset HEAD -- scripts/page-speed-insight/mobile/*
+          exit 1
+
+      # 8) 푸시
+      - name: Push to develop
+        if: steps.commit.conclusion == 'success'
+        run: git push origin develop
+
+      # 9) GH CLI 설치
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
 
-      # 8) PR 생성
+      # 10) PR 생성·재활용
       - name: Create or reuse PR
-        id: cpr
+        id: pr
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           EXISTING=$(gh pr list --head develop --base main --state open --limit 1 | awk '{print $1}')
           if [ -n "$EXISTING" ]; then
-            echo "➡️ PR already exists: #$EXISTING"
-            echo "pr_number=$EXISTING" >> $GITHUB_OUTPUT
+            echo "::set-output name=pr_number::$EXISTING"
           else
             URL=$(gh pr create \
               --head develop \
               --base main \
-              --title "update(mobile-result.json): PageSpeedInsight Web Vital Score JSON" \
-              --body "github action cron 실행 결과로 자동 생성된 mobile-result.json 파일을 develop에서 main으로 동기화합니다.")
-            NEW=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
-            echo "➡️ Created new PR: #$NEW"
-            echo "pr_number=$NEW" >> $GITHUB_OUTPUT
+              --title "chore: sync JSON" \
+              --body "자동 생성된 mobile-result.json을 develop→main으로 동기화합니다.")
+            PR_NUM=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
+            echo "::set-output name=pr_number::$PR_NUM"
           fi
 
-      # 9) PR merged
-      - name: Merge PR via GitHub CLI
-        if: steps.cpr.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh cpr merge ${{ steps.pr.outputs.pr_number }} --merge --admin
-
-        # 9) PR 생성/머지 실패 시, 마지막 자동 커밋만 롤백
-      - name: Rollback develop on PR failure
-        if: steps.cpr.outcome != 'success' && steps.commit.outputs.changed == 'true'
+      # 11) PR 생성 실패 시 롤백 커밋 하나만 제거하고 종료
+      - name: Rollback on PR failure
+        if: steps.pr.outcome != 'success' && steps.stage.outputs.changed == 'true'
         run: |
-          git fetch origin develop
           git checkout develop
           git reset --hard HEAD~1
           git push origin develop --force
+          exit 1
+
+      # 12) PR 머지
+      - name: Merge PR via GitHub CLI
+        if: steps.pr.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ steps.pr.outputs.pr_number }} --merge --admin
