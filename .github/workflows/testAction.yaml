@@ -57,7 +57,7 @@ jobs:
           git add scripts/page-speed-insight/mobile/*
           if git diff --quiet --cached; then
             echo "🔍 No JSON changes to commit"
-            echo "changed=false" >> $GITHUB_OUTPUT   # ← 변경없음 플래그
+            echo "changed=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           git config user.name "github-actions[bot]"
