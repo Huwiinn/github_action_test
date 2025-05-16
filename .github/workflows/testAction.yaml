@@ -87,7 +87,7 @@ jobs:
         id: pr
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secretss.GITHUB_TOKEN }}
         run: |
           EXISTING=$(gh pr list --head develop --base main --state open --limit 1 | awk '{print $1}')
           if [ -n "$EXISTING" ]; then

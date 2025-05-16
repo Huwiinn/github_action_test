@@ -333,7 +333,6 @@ const createResultJsonFile = async () => {
         console.log(`파일을 생성하지 못했습니다. error: ${error.message}`);
         return undefined;
       } else {
-        throw error('고의 에러발생');
         console.log('mobile-result.json 파일 생성 완료')
       }
     });
