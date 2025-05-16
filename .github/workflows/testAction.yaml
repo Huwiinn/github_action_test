@@ -77,25 +77,22 @@ permissions:
 jobs:
   sync-pagespeed:
     runs-on: ubuntu-latest
-
     steps:
-      # 1) main 브랜치 체크아웃 및 최신화
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+
       - name: Pull latest on main
         run: git pull origin main
 
-      # 2) develop 브랜치 체크아웃 및 최신화
       - name: Checkout develop
         run: |
           git fetch origin develop
           git checkout develop
           git pull origin develop
 
-      # 3) Node.js 세팅 및 의존 설치
       - name: Setup Node.js & Install deps
         uses: actions/setup-node@v3
         with:
@@ -104,13 +101,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 4) PageSpeedInsight 스크립트 실행 → JSON 생성
       - name: Run PageSpeedInsight
         env:
           PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
         run: node scripts/page-speed-insight/test-script.js
 
-      # 5) 변경된 JSON만 스테이지 & 커밋 & 푸시
       - name: Commit & push JSON to develop
         run: |
           git add scripts/page-speed-insight/mobile/*
@@ -123,37 +118,33 @@ jobs:
           git commit -m "chore: update PageSpeedInsight JSON"
           git push origin develop
 
-      # 6) GH CLI 설치 및 인증
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
 
-      # 7) develop→main PR 생성 (혹은 기존 PR 번호 리턴)
       - name: Create or reuse PR
         id: cpr
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github_token }}
         run: |
-          EXISTING=$(gh pr list --head develop --base main --json number --jq '.[0].number')
+          EXISTING=$(gh pr list --head develop --base main --state open --limit 1 | awk '{print $1}')
           if [ -n "$EXISTING" ]; then
             echo "➡️ PR already exists: #$EXISTING"
             echo "pr_number=$EXISTING" >> $GITHUB_OUTPUT
           else
-            NEW=$(gh pr create \
+            URL=$(gh pr create \
               --head develop \
               --base main \
               --title "chore: sync PageSpeedInsight JSON" \
               --body "자동 생성된 PageSpeedInsight JSON을 develop에서 main으로 동기화합니다." \
-              --label automatic,ci \
-              --json number --jq '.number')
+              --label automatic,ci)
+            NEW=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
             echo "➡️ Created new PR: #$NEW"
             echo "pr_number=$NEW" >> $GITHUB_OUTPUT
           fi
 
-      # 8) PR 머지 via GitHub CLI
       - name: Merge PR via GitHub CLI
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr merge ${{ steps.cpr.outputs.pr_number }} --merge --admin
+          GH_TOKEN: ${{ github_token }}
+        run: gh pr merge ${{ steps.cpr.outputs.pr_number }} --merge --admin
