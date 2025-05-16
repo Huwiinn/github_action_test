@@ -96,7 +96,7 @@ jobs:
             URL=$(gh pr create \
               --head develop \
               --base main \
-              --title "chore: sync JSON" \
+              --title "update(mobile-result.json): PageSpeedInsight Web Vital Score JSON" \
               --body "자동 생성된 mobile-result.json을 develop→main으로 동기화합니다.")
             PR_NUM=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
             echo "::set-output name=pr_number::$PR_NUM"
