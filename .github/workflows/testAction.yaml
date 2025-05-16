@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline Test
 
 permissions:
   contents: write          # repo 파일 읽기·쓰기
@@ -46,7 +46,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: develop
           base: main
-          commit-message: "ci: update from develop"
+          commit-message: "update: pagespeed insight json update from develop"
           merge-method: merge
           title: "CI/CD: Sync develop → main"
           body: |
