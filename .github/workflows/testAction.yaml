@@ -35,6 +35,8 @@ jobs:
 
       # 4) 스크립트 실행
       - name: Run custom script
+        env:
+          PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
         run: |
           node scripts/page-speed-insight/test-script.js
 
