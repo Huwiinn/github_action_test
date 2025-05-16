@@ -1,63 +1,161 @@
-name: CI/CD Pipeline Test
+#name: CI/CD Pipeline Test
+#
+#permissions:
+#  contents: write          # repo 파일 읽기·쓰기
+#  pull-requests: write     # PR 생성·수정 권한
+#
+#on:
+#  schedule:
+#    # 매일 15:30 UTC → 한국시간 00:30에 실행
+#    - cron: "30 15 * * *"
+#  workflow_dispatch:
+#
+#jobs:
+#  sync-and-deploy:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      # 1) 전체 브랜치 포함해서 레포 클론
+#      - name: Checkout repository
+#        uses: actions/checkout@v3
+#        with:
+#          fetch-depth: 0
+#
+#      # 2) git 사용자 정보 설정
+#      - name: Configure Git user
+#        run: |
+#          git config user.name "github-actions[bot]"
+#          git config user.email "github-actions[bot]@users.noreply.github.com"
+#
+#      # 3) develop 브랜치로 이동
+#      - name: Switch to develop branch
+#        run: |
+#          git fetch origin develop
+#          git checkout develop
+#
+#      # 4) 스크립트 실행
+#      - name: Run custom script
+#        env:
+#          PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
+#        run: |
+#          node scripts/page-speed-insight/test-script.js
+#
+#      # 5) 변화 감지 후 PR 생성
+#      - name: Create Pull Request to main
+#        id: cpr
+#        uses: peter-evans/create-pull-request@v5
+#        with:
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#          branch: develop
+#          base: main
+#          commit-message: "update: pagespeed insight json update from develop"
+#          merge-method: merge
+#          title: "CI/CD: Sync develop → main"
+#          body: |
+#            이 PR은 자동화된 CI/CD 파이프라인에 의해 생성되었습니다.
+#            develop 브랜치에서 실행된 스크립트 결과를 main 브랜치에 반영합니다.
+#
+#      # 6) PR 머지 via GitHub CLI
+#      - name: Merge Pull Request via gh
+#        env:
+#          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge --admin
 
-permissions:
-  contents: write          # repo 파일 읽기·쓰기
-  pull-requests: write     # PR 생성·수정 권한
+
+name: PageSpeedInsight Sync Workflow
 
 on:
   schedule:
-    # 매일 15:30 UTC → 한국시간 00:30에 실행
-    - cron: "30 15 * * *"
+    - cron: '0 21 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
-  sync-and-deploy:
+  sync-pagespeed:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) 전체 브랜치 포함해서 레포 클론
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      # 1) main 브랜치 체크아웃 및 최신화
+      - name: Checkout main
+        uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+      - name: Pull latest on main
+        run: git pull origin main
 
-      # 2) git 사용자 정보 설정
-      - name: Configure Git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      # 3) develop 브랜치로 이동
-      - name: Switch to develop branch
+      # 2) develop 브랜치 체크아웃 및 최신화
+      - name: Checkout develop
         run: |
           git fetch origin develop
           git checkout develop
+          git pull origin develop
 
-      # 4) 스크립트 실행
-      - name: Run custom script
+      # 3) Node.js 세팅 및 의존 설치
+      - name: Setup Node.js & Install deps
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+
+      # 4) PageSpeedInsight 스크립트 실행 → JSON 생성
+      - name: Run PageSpeedInsight
         env:
           PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
+        run: node scripts/page-speed-insight/test-script.js
+
+      # 5) 변경된 JSON만 스테이지 & 커밋 & 푸시
+      - name: Commit & push JSON to develop
         run: |
-          node scripts/page-speed-insight/test-script.js
+          git add scripts/page-speed-insight/mobile/*
+          if git diff --quiet --cached; then
+            echo "🔍 No JSON changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update PageSpeedInsight JSON"
+          git push origin develop
 
-      # 5) 변화 감지 후 PR 생성
-      - name: Create Pull Request to main
+      # 6) GH CLI 설치 및 인증
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+      - name: Authenticate GH CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | gh auth login --with-token
+
+      # 7) develop→main PR 생성 (혹은 기존 PR 번호 리턴)
+      - name: Create or reuse PR
         id: cpr
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: develop
-          base: main
-          commit-message: "update: pagespeed insight json update from develop"
-          merge-method: merge
-          title: "CI/CD: Sync develop → main"
-          body: |
-            이 PR은 자동화된 CI/CD 파이프라인에 의해 생성되었습니다.
-            develop 브랜치에서 실행된 스크립트 결과를 main 브랜치에 반영합니다.
+        run: |
+          EXISTING=$(gh pr list --head develop --base main --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "➡️ PR already exists: #$EXISTING"
+            echo "pr_number=$EXISTING" >> $GITHUB_OUTPUT
+          else
+            NEW=$(gh pr create \
+              --head develop \
+              --base main \
+              --title "chore: sync PageSpeedInsight JSON" \
+              --body "자동 생성된 PageSpeedInsight JSON을 develop에서 main으로 동기화합니다." \
+              --label automatic,ci \
+              --json number --jq '.number')
+            echo "➡️ Created new PR: #$NEW"
+            echo "pr_number=$NEW" >> $GITHUB_OUTPUT
+          fi
 
-      # 6) PR 머지 via GitHub CLI
-      - name: Merge Pull Request via gh
+      # 8) PR 머지 via GitHub CLI
+      - name: Merge PR via GitHub CLI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --merge --admin
+          gh pr merge ${{ steps.cpr.outputs.pr_number }} --merge --admin
