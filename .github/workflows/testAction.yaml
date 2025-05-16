@@ -74,8 +74,8 @@ jobs:
 
       # 8) PR 생성
       - name: Create or reuse PR
-        if: steps.commit.outputs.changed == 'true'
         id: cpr
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -88,16 +88,24 @@ jobs:
               --head develop \
               --base main \
               --title "update(mobile-result.json): PageSpeedInsight Web Vital Score JSON" \
-              --body "github action cron 실행 결과로 자동 생성된 mobile-result.json 파일을 develop에서 main으로 동기화합니다." \
-              )
-              NEW=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
-              echo "➡️ Created new PR: #$NEW"
-              echo "pr_number=$NEW" >> $GITHUB_OUTPUT
-            fi
+              --body "github action cron 실행 결과로 자동 생성된 mobile-result.json 파일을 develop에서 main으로 동기화합니다.")
+            NEW=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
+            echo "➡️ Created new PR: #$NEW"
+            echo "pr_number=$NEW" >> $GITHUB_OUTPUT
+          fi
 
       # 9) PR merged
       - name: Merge PR via GitHub CLI
-        if: steps.commit.outputs.changed == 'true'
+        if: steps.cpr.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge ${{ steps.cpr.outputs.pr_number }} --merge --admin
+        run: gh cpr merge ${{ steps.pr.outputs.pr_number }} --merge --admin
+
+        # 9) PR 생성/머지 실패 시, 마지막 자동 커밋만 롤백
+      - name: Rollback develop on PR failure
+        if: steps.cpr.outcome != 'success' && steps.commit.outputs.changed == 'true'
+        run: |
+          git fetch origin develop
+          git checkout develop
+          git reset --hard HEAD~1
+          git push origin develop --force
