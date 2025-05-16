@@ -128,10 +128,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
-      - name: Authenticate GH CLI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GITHUB_TOKEN" | gh auth login --with-token
 
       # 7) develop→main PR 생성 (혹은 기존 PR 번호 리턴)
       - name: Create or reuse PR
