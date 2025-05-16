@@ -1,33 +1,39 @@
-name: PageSpeedInsight Sync Workflow
+name: PageSpeedInsight Web Vital Score API Workflow
 
 on:
+  # 1) 매일 한국시간 06:00 → UTC 21:00
   schedule:
     - cron: '0 21 * * *'
+  # 2) action 수동 실행 버튼
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write       # checkout / commit / push 권한
+  pull-requests: write  # PR 생성 권한
 
 jobs:
   sync-pagespeed:
     runs-on: ubuntu-latest
     steps:
+      # 1) main 브랜치 체크아웃
       - name: Checkout main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
+      # 2) main 브랜치 최신화
       - name: Pull latest on main
         run: git pull origin main
 
+      # 3) develop 브랜치 체크아웃 및 최신화
       - name: Checkout develop
         run: |
           git fetch origin develop
           git checkout develop
           git pull origin develop
 
+      # 4) Node.js 세팅 및 의존 설치
       - name: Setup Node.js & Install deps
         uses: actions/setup-node@v3
         with:
@@ -36,29 +42,39 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 5) PageSpeedInsight 스크립트 실행 → JSON 생성
       - name: Run PageSpeedInsight
         env:
           PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
-        run: node scripts/page-speed-insight/test-script.js
+        run: npx ts-node scripts/page-speed-insight/pageSpeedInsight.ts
 
+      # 6) commit & push
+      # 6-1) if ~ fi까지 -> 변경된 게 없으면
+      # 6-2) fi 이후 -> 변경이 있으면
       - name: Commit & push JSON to develop
+        id: commit
         run: |
           git add scripts/page-speed-insight/mobile/*
           if git diff --quiet --cached; then
             echo "🔍 No JSON changes to commit"
+            echo "changed=false" >> $GITHUB_OUTPUT   # ← 변경없음 플래그
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: update PageSpeedInsight JSON"
           git push origin develop
+          echo "changed=true" >> $GITHUB_OUTPUT
 
+      # 7) GH CLI 설치
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
 
+      # 8) PR 생성
       - name: Create or reuse PR
+        if: steps.commit.outputs.changed == 'true'
         id: cpr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,15 +87,17 @@ jobs:
             URL=$(gh pr create \
               --head develop \
               --base main \
-              --title "chore: sync PageSpeedInsight JSON" \
-              --body "자동 생성된 PageSpeedInsight JSON을 develop에서 main으로 동기화합니다." \
+              --title "update(mobile-result.json): PageSpeedInsight Web Vital Score JSON" \
+              --body "github action cron 실행 결과로 자동 생성된 mobile-result.json 파일을 develop에서 main으로 동기화합니다." \
               )
               NEW=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
               echo "➡️ Created new PR: #$NEW"
               echo "pr_number=$NEW" >> $GITHUB_OUTPUT
             fi
 
+      # 9) PR merged
       - name: Merge PR via GitHub CLI
+        if: steps.commit.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr merge ${{ steps.cpr.outputs.pr_number }} --merge --admin
