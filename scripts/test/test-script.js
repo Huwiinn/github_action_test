@@ -30,8 +30,8 @@ testFn();
 // ------------ 개별 스크립트
 // desktop 관련 코드는 주석
 
-const fs = require('fs');
-const path = require("path");
+// const fs = require('fs');
+// const path = require("path");
 const key = process.env.PAGE_SPEED_INSIGHT_KEY;
 const currentDirPath = __dirname;
 
