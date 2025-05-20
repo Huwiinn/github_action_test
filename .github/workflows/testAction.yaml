@@ -1,126 +1,126 @@
-name: PageSpeedInsight Web Vital Score API Workflow
-
-on:
-  schedule:
-    - cron: '0 21 * * *'
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pull-requests: write
-
-jobs:
-  sync-pagespeed:
-    runs-on: ubuntu-latest
-
-    steps:
-      # 1) main 브랜치 체크아웃 및 최신화
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Pull latest on main
-        run: git pull origin main
-
-      # 2) develop 브랜치 체크아웃 및 최신화
-      - name: Checkout develop
-        run: |
-          git fetch origin develop
-          git checkout develop
-          git pull origin develop
-
-      # 3) Node.js 세팅 및 의존 설치
-      - name: Setup Node.js & Install deps
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-
-      # 4) JSON 생성
-      - name: Run PageSpeedInsight
-        env:
-          PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
-        run: node scripts/page-speed-insight/test-script.js
-
-      # 5) 변경 감지 · 스테이징
-      - name: Stage JSON changes
-        id: stage
-        run: |
-          git diff --quiet scripts/page-speed-insight/mobile/ && \
-            ( echo "changed=false" >> $GITHUB_OUTPUT; exit 0 )
-          git add scripts/page-speed-insight/mobile/*
-          echo "changed=true" >> $GITHUB_OUTPUT
-
-      # 6) 커밋
-      - name: Commit changes
-        if: steps.stage.outputs.changed == 'true'
-        id: commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: update PageSpeedInsight JSON"
-
-      # 7) 커밋 실패 시 롤백하고 종료
-      - name: Rollback on commit failure
-        if: steps.commit.conclusion == 'failure'
-        run: |
-          git reset HEAD -- scripts/page-speed-insight/mobile/*
-          exit 1
-
-      # 8) 푸시
-      - name: Push to develop
-        if: steps.commit.conclusion == 'success'
-        run: git push origin develop
-
-      # 9) GH CLI 설치
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-
-      # 10) PR 생성·재활용
-      - name: Create or reuse PR
-        if: steps.stage.outputs.changed == 'true'
-        id: pr
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          EXISTING=$(gh pr list --head develop --base main --state open --limit 1 | awk '{print $1}')
-          if [ -n "$EXISTING" ]; then
-            echo "pr_number=$EXISTING" >> $GITHUB_OUTPUT
-          else
-            URL=$(gh pr create \
-              --head develop \
-              --base main \
-              --title "update(mobile-result.json): PageSpeedInsight Web Vital Score JSON" \
-              --body "자동 생성된 mobile-result.json을 develop→main으로 동기화합니다.")
-            PR_NUM=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
-            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
-          fi
-          # — 고의 에러 발생
-          # echo "💥 Simulating failure in PR creation step" >&2
-          # exit 1
-
-      # 11) PR 생성 실패 시 롤백 커밋 하나만 제거하고 종료
-      - name: Rollback on PR failure
-        if: steps.pr.outcome != 'success' && steps.stage.outputs.changed == 'true'
-        run: |
-          echo "➡️ Running rollback (step 11) because PR step failed"
-          git checkout develop
-          git reset --hard HEAD~1
-          git push origin develop --force
-          exit 1
-
-      # 12) PR 머지
-      - name: Merge PR via GitHub CLI
-        if: steps.pr.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "✅ Running merge (step 12) because PR step succeeded"
-          gh pr merge ${{ steps.pr.outputs.pr_number }} --merge --admin
+#name: PageSpeedInsight Web Vital Score API Workflow
+#
+#on:
+#  schedule:
+#    - cron: '0 21 * * *'
+#  workflow_dispatch:
+#
+#permissions:
+#  contents: write
+#  pull-requests: write
+#
+#jobs:
+#  sync-pagespeed:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      # 1) main 브랜치 체크아웃 및 최신화
+#      - name: Checkout main
+#        uses: actions/checkout@v4
+#        with:
+#          ref: main
+#          fetch-depth: 0
+#
+#      - name: Pull latest on main
+#        run: git pull origin main
+#
+#      # 2) develop 브랜치 체크아웃 및 최신화
+#      - name: Checkout develop
+#        run: |
+#          git fetch origin develop
+#          git checkout develop
+#          git pull origin develop
+#
+#      # 3) Node.js 세팅 및 의존 설치
+#      - name: Setup Node.js & Install deps
+#        uses: actions/setup-node@v3
+#        with:
+#          node-version: '18'
+#          cache: 'npm'
+#      - name: Install dependencies
+#        run: npm ci
+#
+#      # 4) JSON 생성
+#      - name: Run PageSpeedInsight
+#        env:
+#          PAGE_SPEED_INSIGHT_KEY: ${{ secrets.PAGE_SPEED_INSIGHT_KEY }}
+#        run: node scripts/page-speed-insight/test-script.js
+#
+#      # 5) 변경 감지 · 스테이징
+#      - name: Stage JSON changes
+#        id: stage
+#        run: |
+#          git diff --quiet scripts/page-speed-insight/mobile/ && \
+#            ( echo "changed=false" >> $GITHUB_OUTPUT; exit 0 )
+#          git add scripts/page-speed-insight/mobile/*
+#          echo "changed=true" >> $GITHUB_OUTPUT
+#
+#      # 6) 커밋
+#      - name: Commit changes
+#        if: steps.stage.outputs.changed == 'true'
+#        id: commit
+#        run: |
+#          git config user.name "github-actions[bot]"
+#          git config user.email "github-actions[bot]@users.noreply.github.com"
+#          git commit -m "chore: update PageSpeedInsight JSON"
+#
+#      # 7) 커밋 실패 시 롤백하고 종료
+#      - name: Rollback on commit failure
+#        if: steps.commit.conclusion == 'failure'
+#        run: |
+#          git reset HEAD -- scripts/page-speed-insight/mobile/*
+#          exit 1
+#
+#      # 8) 푸시
+#      - name: Push to develop
+#        if: steps.commit.conclusion == 'success'
+#        run: git push origin develop
+#
+#      # 9) GH CLI 설치
+#      - name: Install GitHub CLI
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y gh
+#
+#      # 10) PR 생성·재활용
+#      - name: Create or reuse PR
+#        if: steps.stage.outputs.changed == 'true'
+#        id: pr
+#        continue-on-error: true
+#        env:
+#          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          EXISTING=$(gh pr list --head develop --base main --state open --limit 1 | awk '{print $1}')
+#          if [ -n "$EXISTING" ]; then
+#            echo "pr_number=$EXISTING" >> $GITHUB_OUTPUT
+#          else
+#            URL=$(gh pr create \
+#              --head develop \
+#              --base main \
+#              --title "update(mobile-result.json): PageSpeedInsight Web Vital Score JSON" \
+#              --body "자동 생성된 mobile-result.json을 develop→main으로 동기화합니다.")
+#            PR_NUM=$(echo "$URL" | sed -E 's:.*/([0-9]+)$:\1:')
+#            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+#          fi
+#          # — 고의 에러 발생
+#          # echo "💥 Simulating failure in PR creation step" >&2
+#          # exit 1
+#
+#      # 11) PR 생성 실패 시 롤백 커밋 하나만 제거하고 종료
+#      - name: Rollback on PR failure
+#        if: steps.pr.outcome != 'success' && steps.stage.outputs.changed == 'true'
+#        run: |
+#          echo "➡️ Running rollback (step 11) because PR step failed"
+#          git checkout develop
+#          git reset --hard HEAD~1
+#          git push origin develop --force
+#          exit 1
+#
+#      # 12) PR 머지
+#      - name: Merge PR via GitHub CLI
+#        if: steps.pr.outcome == 'success'
+#        env:
+#          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          echo "✅ Running merge (step 12) because PR step succeeded"
+#          gh pr merge ${{ steps.pr.outputs.pr_number }} --merge --admin
